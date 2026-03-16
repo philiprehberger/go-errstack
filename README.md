@@ -1,5 +1,9 @@
 # go-errstack
 
+[![CI](https://github.com/philiprehberger/go-errstack/actions/workflows/ci.yml/badge.svg)](https://github.com/philiprehberger/go-errstack/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/philiprehberger/go-errstack.svg)](https://pkg.go.dev/github.com/philiprehberger/go-errstack)
+[![License](https://img.shields.io/github/license/philiprehberger/go-errstack)](LICENSE)
+
 Error wrapping with stack traces for Go.
 
 ## Installation
@@ -71,6 +75,13 @@ errors.Is(err, ErrNotFound) // true
 | `New(msg)` | Creates a new error with a stack trace |
 | `Newf(fmt, args...)` | Creates a new formatted error with a stack trace |
 | `Stack(err)` | Extracts stack frames from an error; returns nil if none found |
+
+## Development
+
+```bash
+go test ./...
+go vet ./...
+```
 
 ## License
 
