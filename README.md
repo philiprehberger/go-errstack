@@ -4,7 +4,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/philiprehberger/go-errstack.svg)](https://pkg.go.dev/github.com/philiprehberger/go-errstack)
 [![License](https://img.shields.io/github/license/philiprehberger/go-errstack)](LICENSE)
 
-Error wrapping with stack traces for Go.
+Error wrapping with stack traces for Go
 
 ## Installation
 
