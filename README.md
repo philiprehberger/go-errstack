@@ -1,8 +1,6 @@
 # go-errstack
 
-[![CI](https://github.com/philiprehberger/go-errstack/actions/workflows/ci.yml/badge.svg)](https://github.com/philiprehberger/go-errstack/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/philiprehberger/go-errstack.svg)](https://pkg.go.dev/github.com/philiprehberger/go-errstack)
-[![License](https://img.shields.io/github/license/philiprehberger/go-errstack)](LICENSE)
+[![CI](https://github.com/philiprehberger/go-errstack/actions/workflows/ci.yml/badge.svg)](https://github.com/philiprehberger/go-errstack/actions/workflows/ci.yml) [![Go Reference](https://pkg.go.dev/badge/github.com/philiprehberger/go-errstack.svg)](https://pkg.go.dev/github.com/philiprehberger/go-errstack) [![License](https://img.shields.io/github/license/philiprehberger/go-errstack)](LICENSE)
 
 Error wrapping with stack traces for Go
 
