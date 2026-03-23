@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+- Add `Caller` function to capture a single stack frame at a given depth
+- Add `WithValue` and `Value` for attaching key-value annotations to errors
+- Add `StackString` for formatted multi-line stack trace output
+- Add `TrimAbove` and `TrimBelow` for filtering stack frames by package
+
 ## 0.1.2
 
 - Consolidate README badges onto single line

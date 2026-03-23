@@ -215,3 +215,245 @@ func TestStackWalksUnwrapChain(t *testing.T) {
 		t.Error("expected at least one frame")
 	}
 }
+
+// --- Caller tests ---
+
+func TestCallerReturnsCurrentFrame(t *testing.T) {
+	f := Caller(0)
+	if !strings.Contains(f.Function, "TestCallerReturnsCurrentFrame") {
+		t.Errorf("expected Function to contain test name, got %q", f.Function)
+	}
+	if f.File == "" {
+		t.Error("expected non-empty File")
+	}
+	if f.Line <= 0 {
+		t.Errorf("expected Line > 0, got %d", f.Line)
+	}
+}
+
+func callerHelper() Frame {
+	return Caller(1)
+}
+
+func TestCallerSkipReturnsParent(t *testing.T) {
+	f := callerHelper()
+	if !strings.Contains(f.Function, "TestCallerSkipReturnsParent") {
+		t.Errorf("expected Function to contain test name, got %q", f.Function)
+	}
+}
+
+// --- WithValue / Value tests ---
+
+func TestWithValueNilReturnsNil(t *testing.T) {
+	if err := WithValue(nil, "key", "val"); err != nil {
+		t.Errorf("expected nil, got %v", err)
+	}
+}
+
+func TestWithValuePreservesMessage(t *testing.T) {
+	base := errors.New("original")
+	err := WithValue(base, "user", "alice")
+	if err.Error() != "original" {
+		t.Errorf("got %q, want %q", err.Error(), "original")
+	}
+}
+
+func TestValueExtractsAnnotation(t *testing.T) {
+	base := errors.New("fail")
+	err := WithValue(base, "request_id", "abc-123")
+	val, ok := Value(err, "request_id")
+	if !ok {
+		t.Fatal("expected to find request_id annotation")
+	}
+	if val != "abc-123" {
+		t.Errorf("got %v, want %q", val, "abc-123")
+	}
+}
+
+func TestValueReturnsFalseForMissingKey(t *testing.T) {
+	base := errors.New("fail")
+	err := WithValue(base, "key", "val")
+	_, ok := Value(err, "other")
+	if ok {
+		t.Error("expected ok to be false for missing key")
+	}
+}
+
+func TestValueReturnsFalseForPlainError(t *testing.T) {
+	err := errors.New("plain")
+	_, ok := Value(err, "key")
+	if ok {
+		t.Error("expected ok to be false for plain error")
+	}
+}
+
+func TestAnnotationChaining(t *testing.T) {
+	base := errors.New("fail")
+	err := WithValue(base, "user", "alice")
+	err = WithValue(err, "request_id", "req-1")
+	err = WithValue(err, "trace_id", "trace-2")
+
+	val, ok := Value(err, "user")
+	if !ok || val != "alice" {
+		t.Errorf("user: got %v (%v), want alice", val, ok)
+	}
+	val, ok = Value(err, "request_id")
+	if !ok || val != "req-1" {
+		t.Errorf("request_id: got %v (%v), want req-1", val, ok)
+	}
+	val, ok = Value(err, "trace_id")
+	if !ok || val != "trace-2" {
+		t.Errorf("trace_id: got %v (%v), want trace-2", val, ok)
+	}
+}
+
+func TestAnnotationOverrideReturnsNewest(t *testing.T) {
+	base := errors.New("fail")
+	err := WithValue(base, "key", "first")
+	err = WithValue(err, "key", "second")
+	val, ok := Value(err, "key")
+	if !ok {
+		t.Fatal("expected to find key")
+	}
+	if val != "second" {
+		t.Errorf("got %v, want %q (should return outermost)", val, "second")
+	}
+}
+
+func TestAnnotatedErrorUnwrapsCorrectly(t *testing.T) {
+	base := errors.New("target")
+	err := WithValue(base, "k", "v")
+	if !errors.Is(err, base) {
+		t.Error("errors.Is should find base through WithValue")
+	}
+}
+
+// --- StackString tests ---
+
+func TestStackStringFormatsFrames(t *testing.T) {
+	err := New("test error")
+	s := StackString(err)
+	if s == "" {
+		t.Fatal("expected non-empty stack string")
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) < 2 {
+		t.Fatalf("expected at least 2 lines, got %d", len(lines))
+	}
+	// First line should be function name
+	if !strings.Contains(lines[0], "TestStackStringFormatsFrames") {
+		t.Errorf("expected first line to contain test name, got %q", lines[0])
+	}
+	// Second line should be indented file:line
+	if !strings.HasPrefix(lines[1], "\t") {
+		t.Errorf("expected second line to start with tab, got %q", lines[1])
+	}
+	if !strings.Contains(lines[1], ".go:") {
+		t.Errorf("expected second line to contain file:line, got %q", lines[1])
+	}
+}
+
+func TestStackStringReturnsEmptyForPlainError(t *testing.T) {
+	err := errors.New("plain")
+	s := StackString(err)
+	if s != "" {
+		t.Errorf("expected empty string, got %q", s)
+	}
+}
+
+func TestStackStringReturnsEmptyForNil(t *testing.T) {
+	s := StackString(nil)
+	if s != "" {
+		t.Errorf("expected empty string, got %q", s)
+	}
+}
+
+// --- TrimAbove / TrimBelow tests ---
+
+func TestTrimAboveFiltersFrames(t *testing.T) {
+	frames := []Frame{
+		{Function: "runtime.main"},
+		{Function: "main.run"},
+		{Function: "myapp/handler.Serve"},
+		{Function: "myapp/handler.process"},
+	}
+	result := TrimAbove(frames, "myapp/handler")
+	if len(result) != 2 {
+		t.Fatalf("expected 2 frames, got %d", len(result))
+	}
+	if result[0].Function != "myapp/handler.Serve" {
+		t.Errorf("expected first frame to be handler.Serve, got %q", result[0].Function)
+	}
+}
+
+func TestTrimAboveReturnsNilIfNoMatch(t *testing.T) {
+	frames := []Frame{
+		{Function: "runtime.main"},
+		{Function: "main.run"},
+	}
+	result := TrimAbove(frames, "nonexistent")
+	if result != nil {
+		t.Errorf("expected nil, got %v", result)
+	}
+}
+
+func TestTrimAboveEmptySlice(t *testing.T) {
+	result := TrimAbove(nil, "pkg")
+	if result != nil {
+		t.Errorf("expected nil, got %v", result)
+	}
+}
+
+func TestTrimBelowFiltersFrames(t *testing.T) {
+	frames := []Frame{
+		{Function: "myapp/handler.Serve"},
+		{Function: "myapp/handler.process"},
+		{Function: "net/http.serve"},
+		{Function: "runtime.goexit"},
+	}
+	result := TrimBelow(frames, "myapp/handler")
+	if len(result) != 2 {
+		t.Fatalf("expected 2 frames, got %d", len(result))
+	}
+	if result[1].Function != "myapp/handler.process" {
+		t.Errorf("expected last frame to be handler.process, got %q", result[1].Function)
+	}
+}
+
+func TestTrimBelowReturnsNilIfNoMatch(t *testing.T) {
+	frames := []Frame{
+		{Function: "runtime.main"},
+	}
+	result := TrimBelow(frames, "nonexistent")
+	if result != nil {
+		t.Errorf("expected nil, got %v", result)
+	}
+}
+
+func TestTrimBelowEmptySlice(t *testing.T) {
+	result := TrimBelow(nil, "pkg")
+	if result != nil {
+		t.Errorf("expected nil, got %v", result)
+	}
+}
+
+func TestTrimAboveAndBelowCombined(t *testing.T) {
+	frames := []Frame{
+		{Function: "runtime.main"},
+		{Function: "myapp/server.Start"},
+		{Function: "myapp/handler.Serve"},
+		{Function: "myapp/handler.validate"},
+		{Function: "net/http.ListenAndServe"},
+	}
+	result := TrimAbove(frames, "myapp/handler")
+	result = TrimBelow(result, "myapp/handler")
+	if len(result) != 2 {
+		t.Fatalf("expected 2 frames, got %d", len(result))
+	}
+	if result[0].Function != "myapp/handler.Serve" {
+		t.Errorf("got %q", result[0].Function)
+	}
+	if result[1].Function != "myapp/handler.validate" {
+		t.Errorf("got %q", result[1].Function)
+	}
+}

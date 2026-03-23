@@ -2,8 +2,10 @@
 package errstack
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 // Frame represents a single stack frame.
@@ -102,6 +104,118 @@ func Stack(err error) []Frame {
 		err = unwrapper.Unwrap()
 	}
 	return nil
+}
+
+// Caller returns a single stack frame at the given skip depth. Skip 0 refers
+// to the caller of Caller itself.
+func Caller(skip int) Frame {
+	var pcs [1]uintptr
+	n := runtime.Callers(skip+2, pcs[:])
+	if n == 0 {
+		return Frame{}
+	}
+	frame, _ := runtime.CallersFrames(pcs[:1]).Next()
+	return Frame{
+		Function: frame.Function,
+		File:     frame.File,
+		Line:     frame.Line,
+	}
+}
+
+// annotatedError is an error that carries a key-value annotation.
+type annotatedError struct {
+	err error
+	key string
+	val any
+}
+
+// Error returns the underlying error message.
+func (a *annotatedError) Error() string {
+	return a.err.Error()
+}
+
+// Unwrap returns the underlying error.
+func (a *annotatedError) Unwrap() error {
+	return a.err
+}
+
+// WithValue wraps err with a key-value annotation. The original error and its
+// chain are preserved. Returns nil if err is nil.
+func WithValue(err error, key string, val any) error {
+	if err == nil {
+		return nil
+	}
+	return &annotatedError{
+		err: err,
+		key: key,
+		val: val,
+	}
+}
+
+// Value extracts an annotation value from the error chain by key. It walks the
+// chain using errors.As looking for an annotatedError with a matching key.
+// Returns the value and true if found, or nil and false otherwise.
+func Value(err error, key string) (any, bool) {
+	var ae *annotatedError
+	for {
+		if !errors.As(err, &ae) {
+			return nil, false
+		}
+		if ae.key == key {
+			return ae.val, true
+		}
+		err = ae.err
+	}
+}
+
+// StackString returns a formatted multi-line stack trace string from an error.
+// Each frame is rendered as two lines: the function name, then the file and
+// line indented with a tab. Returns an empty string if no stack frames are
+// found.
+func StackString(err error) string {
+	frames := Stack(err)
+	if len(frames) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i, f := range frames {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(f.Function)
+		b.WriteByte('\n')
+		fmt.Fprintf(&b, "\t%s:%d", f.File, f.Line)
+	}
+	return b.String()
+}
+
+// TrimAbove removes frames from packages above the specified package in the
+// stack. It finds the first frame whose Function contains pkg and returns that
+// frame and all frames below it (i.e., frames from the first occurrence
+// onward).
+func TrimAbove(frames []Frame, pkg string) []Frame {
+	for i, f := range frames {
+		if strings.Contains(f.Function, pkg) {
+			return frames[i:]
+		}
+	}
+	return nil
+}
+
+// TrimBelow removes frames from packages below the specified package in the
+// stack. It finds the last frame whose Function contains pkg and returns all
+// frames up to and including it.
+func TrimBelow(frames []Frame, pkg string) []Frame {
+	last := -1
+	for i, f := range frames {
+		if strings.Contains(f.Function, pkg) {
+			last = i
+		}
+	}
+	if last < 0 {
+		return nil
+	}
+	return frames[:last+1]
 }
 
 // capture collects stack frames, skipping the given number of callers to

@@ -53,6 +53,48 @@ if err != nil {
 }
 ```
 
+### Annotations
+
+Attach key-value metadata to errors without changing the message:
+
+```go
+err := errstack.WithValue(err, "request_id", "abc-123")
+err = errstack.WithValue(err, "user", "alice")
+
+val, ok := errstack.Value(err, "request_id") // "abc-123", true
+```
+
+### Caller
+
+Capture a single stack frame at a given depth:
+
+```go
+f := errstack.Caller(0) // frame of the current function
+fmt.Println(f)           // main.handleRequest (/app/server.go:18)
+```
+
+### Frame filtering
+
+Trim stack frames to focus on relevant packages:
+
+```go
+frames := errstack.Stack(err)
+frames = errstack.TrimAbove(frames, "myapp/handler") // remove frames above handler
+frames = errstack.TrimBelow(frames, "myapp/handler") // remove frames below handler
+```
+
+### Formatted stack trace
+
+Get a formatted multi-line stack trace string:
+
+```go
+fmt.Println(errstack.StackString(err))
+// main.doWork
+//     /path/to/file.go:42
+// main.main
+//     /path/to/file.go:15
+```
+
 ### Compatible with errors.Is and errors.As
 
 ```go
@@ -73,6 +115,12 @@ errors.Is(err, ErrNotFound) // true
 | `New(msg)` | Creates a new error with a stack trace |
 | `Newf(fmt, args...)` | Creates a new formatted error with a stack trace |
 | `Stack(err)` | Extracts stack frames from an error; returns nil if none found |
+| `StackString(err)` | Returns a formatted multi-line stack trace string |
+| `Caller(skip)` | Returns a single stack frame at the given skip depth |
+| `WithValue(err, key, val)` | Wraps an error with a key-value annotation |
+| `Value(err, key)` | Extracts an annotation value from the error chain |
+| `TrimAbove(frames, pkg)` | Removes frames above the first occurrence of pkg |
+| `TrimBelow(frames, pkg)` | Removes frames below the last occurrence of pkg |
 
 ## Development
 
